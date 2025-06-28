@@ -26,7 +26,10 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem asChild>
-            <Link href="/account">Account Settings</Link>
+            <Link href="/dashboard/account">Account Settings</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/billing">Billing</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/onboarding">Retake Quiz</Link>

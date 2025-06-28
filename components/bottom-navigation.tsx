@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation"
 import { Moon, MessageCircle, Volume2, Sparkles, Mountain } from "lucide-react"
 
 const navItems = [
-  { href: "/dreams", icon: Moon, label: "Dreams" },
-  { href: "/chat", icon: MessageCircle, label: "Chat" },
-  { href: "/sounds", icon: Volume2, label: "Sounds" },
-  { href: "/mantras", icon: Sparkles, label: "Mantras" },
-  { href: "/path", icon: Mountain, label: "Path" },
+  { href: "/dashboard/dreams", icon: Moon, label: "Dreams" },
+  { href: "/dashboard/chat", icon: MessageCircle, label: "Chat" },
+  { href: "/dashboard/sounds", icon: Volume2, label: "Sounds" },
+  { href: "/dashboard/mantras", icon: Sparkles, label: "Mantras" },
+  { href: "/dashboard/path", icon: Mountain, label: "Path" },
 ]
 
 export function BottomNavigation() {

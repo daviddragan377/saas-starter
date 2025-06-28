@@ -93,7 +93,7 @@ export default function OnboardingPage() {
       setCurrentStep(currentStep + 1)
     } else {
       // Save data and redirect to main app
-      router.push("/dreams")
+      router.push("/dashboard/dreams")
     }
   }
 
