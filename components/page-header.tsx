@@ -4,6 +4,8 @@ import { User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 interface PageHeaderProps {
   title: string
@@ -11,6 +13,14 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+  }
+
   return (
     <header className="flex items-center justify-between p-4 bg-white/80 backdrop-blur-sm border-b border-stone-200">
       <div>
@@ -34,7 +44,7 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
           <DropdownMenuItem asChild>
             <Link href="/onboarding">Retake Quiz</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>Sign Out</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleSignOut}>Sign Out</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

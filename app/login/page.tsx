@@ -8,27 +8,57 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Sparkles, Eye, EyeOff } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Sparkles, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   })
 
+  const supabase = createClient()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
-    // Simulate login - replace with actual auth logic
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else if (data.user) {
+        // Check if user has completed onboarding
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("personality_traits, traumas_insecurities, goals")
+          .eq("user_id", data.user.id)
+          .single()
+
+        const hasCompletedOnboarding = profile && profile.personality_traits?.length > 0 && profile.goals?.length > 0
+
+        if (hasCompletedOnboarding) {
+          router.push("/dashboard")
+        } else {
+          router.push("/onboarding")
+        }
+      }
+    } catch (err) {
+      setError("An unexpected error occurred")
+    } finally {
       setIsLoading(false)
-      router.push("/dashboard")
-    }, 1000)
+    }
   }
 
   return (
@@ -50,6 +80,13 @@ export default function LoginPage() {
             <CardTitle className="text-center">Sign In</CardTitle>
           </CardHeader>
           <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="email">Email</Label>

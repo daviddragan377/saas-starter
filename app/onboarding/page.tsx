@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { ArrowRight, ArrowLeft, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 const steps = [
   {
@@ -79,6 +80,8 @@ const goals = [
 export default function OnboardingPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const [formData, setFormData] = useState({
     personality: [] as string[],
     challenges: [] as string[],
@@ -86,14 +89,59 @@ export default function OnboardingPage() {
     additionalNotes: "",
   })
 
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/login")
+      } else {
+        setUser(user)
+      }
+    }
+    getUser()
+  }, [router, supabase.auth])
+
   const progress = ((currentStep + 1) / steps.length) * 100
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
-      // Save data and redirect to main app
-      router.push("/dashboard/dreams")
+      // Save onboarding data
+      setIsLoading(true)
+      try {
+        const { error } = await supabase.from("user_profiles").upsert({
+          user_id: user.id,
+          personality_traits: formData.personality,
+          traumas_insecurities: formData.challenges,
+          goals: formData.goals,
+          updated_at: new Date().toISOString(),
+        })
+
+        if (error) {
+          console.error("Error saving onboarding data:", error)
+        } else {
+          // Create initial milestone
+          await supabase.from("journey_milestones").insert({
+            user_id: user.id,
+            title: "Started Wellness Journey",
+            description: "Completed onboarding and set initial goals",
+            milestone_type: "achievement",
+            completed: true,
+            completed_date: new Date().toISOString().split("T")[0],
+          })
+
+          router.push("/dashboard/dreams")
+        }
+      } catch (error) {
+        console.error("Error during onboarding:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -225,6 +273,10 @@ export default function OnboardingPage() {
     }
   }
 
+  if (!user) {
+    return <div>Loading...</div>
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-stone-50 p-4">
       <div className="max-w-md mx-auto">
@@ -248,13 +300,17 @@ export default function OnboardingPage() {
 
             <div className="flex gap-3 pt-4">
               {currentStep > 0 && (
-                <Button onClick={handleBack} variant="outline" className="flex-1 bg-transparent">
+                <Button onClick={handleBack} variant="outline" className="flex-1 bg-transparent" disabled={isLoading}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
               )}
-              <Button onClick={handleNext} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white">
-                {currentStep === steps.length - 1 ? "Start Journey" : "Continue"}
+              <Button
+                onClick={handleNext}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? "Saving..." : currentStep === steps.length - 1 ? "Start Journey" : "Continue"}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>

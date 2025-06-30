@@ -9,31 +9,59 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Sparkles, Eye, EyeOff } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Sparkles, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function SignupPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
     agreeToTerms: false,
   })
 
+  const supabase = createClient()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.agreeToTerms) return
+    if (!formData.agreeToTerms) {
+      setError("Please agree to the terms and conditions")
+      return
+    }
 
     setIsLoading(true)
+    setError("")
 
-    // Simulate signup - replace with actual auth logic
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        setError(error.message)
+      } else if (data.user) {
+        if (data.user.email_confirmed_at) {
+          // User is immediately confirmed, redirect to onboarding
+          router.push("/onboarding")
+        } else {
+          // User needs to confirm email
+          setError("Please check your email and click the confirmation link to continue.")
+        }
+      }
+    } catch (err) {
+      setError("An unexpected error occurred")
+    } finally {
       setIsLoading(false)
-      router.push("/onboarding")
-    }, 1000)
+    }
   }
 
   return (
@@ -55,19 +83,14 @@ export default function SignupPage() {
             <CardTitle className="text-center">Sign Up</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter your full name"
-                  required
-                />
-              </div>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -88,7 +111,8 @@ export default function SignupPage() {
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Create a password"
+                    placeholder="Create a password (min 6 characters)"
+                    minLength={6}
                     required
                   />
                   <Button
