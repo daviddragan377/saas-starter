@@ -8,20 +8,25 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
+    if (!user) {
+      redirect("/login")
+    }
+
+    return (
+      <div className="min-h-screen pb-20">
+        {children}
+        <BottomNavigation />
+      </div>
+    )
+  } catch (error) {
+    console.error("Dashboard layout error:", error)
     redirect("/login")
   }
-
-  return (
-    <div className="min-h-screen pb-20">
-      {children}
-      <BottomNavigation />
-    </div>
-  )
 }
