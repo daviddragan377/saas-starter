@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
@@ -29,15 +28,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined") {
+      setLoading(false)
+      return
+    }
+
     try {
       const supabase = createClient()
 
       const getUser = async () => {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        setUser(user)
-        setLoading(false)
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          setUser(user)
+        } catch (error) {
+          console.error("Error getting user:", error)
+          setUser(null)
+        } finally {
+          setLoading(false)
+        }
       }
 
       getUser()
@@ -52,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return () => subscription.unsubscribe()
     } catch (error) {
       console.error("Auth context error:", error)
+      setUser(null)
       setLoading(false)
     }
   }, [])

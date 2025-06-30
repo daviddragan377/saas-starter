@@ -8,7 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { ArrowRight, ArrowLeft, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
 
 const steps = [
   {
@@ -82,6 +84,9 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [supabase, setSupabase] = useState<any>(null)
+  const [error, setError] = useState("")
+  const [debugInfo, setDebugInfo] = useState("")
   const [formData, setFormData] = useState({
     personality: [] as string[],
     challenges: [] as string[],
@@ -89,21 +94,38 @@ export default function OnboardingPage() {
     additionalNotes: "",
   })
 
-  const supabase = createClient()
-
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        router.push("/login")
-      } else {
-        setUser(user)
+    const initializeAuth = async () => {
+      try {
+        // Only import and use Supabase on the client side
+        const { createClient } = await import("@/lib/supabase/client")
+        const client = createClient()
+        setSupabase(client)
+
+        const {
+          data: { user },
+        } = await client.auth.getUser()
+
+        if (!user) {
+          router.push("/login")
+        } else {
+          setUser(user)
+          console.log("User authenticated:", user.id)
+
+          // Test database connection
+          const { data: testData, error: testError } = await client.from("user_profiles").select("*").limit(1)
+
+          console.log("Database test:", { testData, testError })
+          setDebugInfo(`User ID: ${user.id}, DB Test: ${testError ? "Failed" : "Success"}`)
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error)
+        setError("Failed to initialize authentication")
       }
     }
-    getUser()
-  }, [router, supabase.auth])
+
+    initializeAuth()
+  }, [router])
 
   const progress = ((currentStep + 1) / steps.length) * 100
 
@@ -112,33 +134,103 @@ export default function OnboardingPage() {
       setCurrentStep(currentStep + 1)
     } else {
       // Save onboarding data
+      if (!user || !supabase) {
+        setError("Authentication not available")
+        return
+      }
+
       setIsLoading(true)
+      setError("")
+
       try {
-        const { error } = await supabase.from("user_profiles").upsert({
+        console.log("=== STARTING ONBOARDING SAVE ===")
+        console.log("User ID:", user.id)
+        console.log("Form data:", formData)
+
+        // Test if we can access the table at all
+        console.log("Testing table access...")
+        const { data: tableTest, error: tableTestError } = await supabase.from("user_profiles").select("count").limit(1)
+
+        console.log("Table access test:", { tableTest, tableTestError })
+
+        if (tableTestError) {
+          setError(`Database access error: ${tableTestError.message}`)
+          return
+        }
+
+        // Check if profile already exists
+        console.log("Checking for existing profile...")
+        const { data: existingProfile, error: checkError } = await supabase
+          .from("user_profiles")
+          .select("id, user_id")
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        console.log("Existing profile check:", { existingProfile, checkError })
+
+        // Prepare the data to save
+        const profileData = {
           user_id: user.id,
-          personality_traits: formData.personality,
-          traumas_insecurities: formData.challenges,
-          goals: formData.goals,
+          personality_traits: JSON.stringify(formData.personality),
+          traumas_insecurities: JSON.stringify(formData.challenges),
+          goals: JSON.stringify(formData.goals),
           updated_at: new Date().toISOString(),
+        }
+
+        console.log("Profile data to save:", profileData)
+
+        let profileResult
+        if (existingProfile) {
+          console.log("Updating existing profile...")
+          profileResult = await supabase
+            .from("user_profiles")
+            .update({
+              personality_traits: JSON.stringify(formData.personality),
+              traumas_insecurities: JSON.stringify(formData.challenges),
+              goals: JSON.stringify(formData.goals),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", user.id)
+            .select()
+        } else {
+          console.log("Creating new profile...")
+          profileResult = await supabase.from("user_profiles").insert(profileData).select()
+        }
+
+        console.log("Profile save result:", profileResult)
+
+        if (profileResult.error) {
+          console.error("Profile save error details:", {
+            error: profileResult.error,
+            message: profileResult.error.message,
+            details: profileResult.error.details,
+            hint: profileResult.error.hint,
+            code: profileResult.error.code,
+          })
+          setError(`Failed to save profile: ${profileResult.error.message || "Unknown error"}`)
+          return
+        }
+
+        console.log("Profile saved successfully!")
+
+        // Create initial milestone (don't fail if this doesn't work)
+        console.log("Creating milestone...")
+        const milestoneResult = await supabase.from("journey_milestones").insert({
+          user_id: user.id,
+          title: "Started Wellness Journey",
+          description: "Completed onboarding and set initial goals",
+          milestone_type: "achievement",
+          completed: true,
+          completed_date: new Date().toISOString().split("T")[0],
         })
 
-        if (error) {
-          console.error("Error saving onboarding data:", error)
-        } else {
-          // Create initial milestone
-          await supabase.from("journey_milestones").insert({
-            user_id: user.id,
-            title: "Started Wellness Journey",
-            description: "Completed onboarding and set initial goals",
-            milestone_type: "achievement",
-            completed: true,
-            completed_date: new Date().toISOString().split("T")[0],
-          })
+        console.log("Milestone save result:", milestoneResult)
 
-          router.push("/dashboard/dreams")
-        }
-      } catch (error) {
-        console.error("Error during onboarding:", error)
+        console.log("=== ONBOARDING SAVE COMPLETED ===")
+        router.push("/dashboard/dreams")
+      } catch (error: any) {
+        console.error("Unexpected error during onboarding:", error)
+        setError(`Unexpected error: ${error.message || "Unknown error"}`)
       } finally {
         setIsLoading(false)
       }
@@ -180,6 +272,7 @@ export default function OnboardingPage() {
                 your unique journey.
               </p>
             </div>
+            {debugInfo && <div className="bg-gray-100 p-2 rounded text-xs text-gray-600">Debug: {debugInfo}</div>}
           </div>
         )
 
@@ -273,8 +366,28 @@ export default function OnboardingPage() {
     }
   }
 
-  if (!user) {
-    return <div>Loading...</div>
+  if (!user && !error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-stone-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-stone-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-stone-50 flex items-center justify-center p-4">
+        <Card className="max-w-md mx-auto">
+          <CardContent className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => router.push("/login")}>Return to Login</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -297,6 +410,12 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {renderStepContent()}
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               {currentStep > 0 && (

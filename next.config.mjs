@@ -3,10 +3,6 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@supabase/ssr'],
   },
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  },
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -15,6 +11,10 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+  },
+  // Prevent prerendering of pages that use Supabase
+  async generateStaticParams() {
+    return []
   },
 }
 

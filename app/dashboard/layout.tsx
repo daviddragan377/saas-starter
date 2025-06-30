@@ -27,6 +27,7 @@ export default async function DashboardLayout({
     )
   } catch (error) {
     console.error("Dashboard layout error:", error)
-    redirect("/login")
+    // Instead of redirecting, show an error or redirect to home
+    redirect("/")
   }
 }

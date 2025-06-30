@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,16 +18,30 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [supabase, setSupabase] = useState<any>(null)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     agreeToTerms: false,
   })
 
-  const supabase = createClient()
+  useEffect(() => {
+    try {
+      const client = createClient()
+      setSupabase(client)
+    } catch (error) {
+      console.error("Failed to create Supabase client:", error)
+      setError("Failed to initialize authentication")
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!supabase) {
+      setError("Authentication not initialized")
+      return
+    }
+
     if (!formData.agreeToTerms) {
       setError("Please agree to the terms and conditions")
       return
@@ -148,7 +161,7 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                disabled={isLoading || !formData.agreeToTerms}
+                disabled={isLoading || !formData.agreeToTerms || !supabase}
               >
                 {isLoading ? "Creating account..." : "Create Account"}
               </Button>

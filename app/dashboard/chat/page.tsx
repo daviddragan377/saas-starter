@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Send, Coffee } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 interface Message {
   id: string
@@ -25,7 +26,20 @@ export default function ChatPage() {
   ])
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+  }, [supabase.auth])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -36,7 +50,7 @@ export default function ChatPage() {
   }, [messages])
 
   const sendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim() || !user) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -49,8 +63,16 @@ export default function ChatPage() {
     setInputValue("")
     setIsTyping(true)
 
+    // Save user message to database
+    await supabase.from("chat_messages").insert({
+      session_id: "default", // You might want to create proper sessions
+      user_id: user.id,
+      role: "user",
+      content: inputValue,
+    })
+
     // Simulate AI response
-    setTimeout(() => {
+    setTimeout(async () => {
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -59,6 +81,15 @@ export default function ChatPage() {
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, aiResponse])
+
+      // Save AI response to database
+      await supabase.from("chat_messages").insert({
+        session_id: "default",
+        user_id: user.id,
+        role: "assistant",
+        content: aiResponse.content,
+      })
+
       setIsTyping(false)
     }, 1500)
   }
@@ -129,7 +160,7 @@ export default function ChatPage() {
           />
           <Button
             onClick={sendMessage}
-            disabled={!inputValue.trim() || isTyping}
+            disabled={!inputValue.trim() || isTyping || !user}
             className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-4"
           >
             <Send className="w-4 h-4" />
